@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<body bgcolor="#dcdcdc" onload="readMessage()">
+<h1 align="center">Welcome to testing Area!</h1>
+<div align="center" >
+    <form id="Login" action="http://127.0.0.1:5000/Starter" method="post" style="alignment: center;">
+    <p align="center">Login</p>
+    <label for="User">Username:</label>
+    <input autofocus type="text" id="User" name="Username">
+    <br>
+    <label for="Pass">Password:</label>
+    <input type="password" id="Pass" name="Password" >
+    <br>
+    <button type="submit" >Login</button>
+    <button onclick="swapMode('Register')" type="button">Sign Up Mode</button>
+    <br>
+    <p id="LogResponse"></p>
+</form>
+</div>
+<div align="center">
+    <form id="Register" action="http://127.0.0.1:5000/Starter" method="post" style="display: none; alignment: center">
+    <p align="center">Login</p>
+    <label for="NAME">Enter Your name:</label>
+    <input type="text" id="NAME" name="NameRegister">
+    <br>
+    <label for="User">Username:</label>
+    <input autofocus type="text" id="UserRegister" name="Username">
+    <br>
+    <label for="PassW">Password:</label>
+    <input type="password" id="PassW" name="Password" >
+    <br>
+    <label for="PassConf">Password Confirm:</label>
+    <input type="password" id="PassConf" name="PasswordConfirm" >
+    <br>
+    <button type="submit" >Sign up</button>
+    <button onclick="swapMode('Login')" type="button">Login Mode</button>
+    <br>
+    <p id="RegResponse"></p>
+</form>
+</div>
+<br>
+<script>
+    function readMessage() {
+        let name = 'Message' + "=";
+        let decodedCookie = decodeURIComponent(document.cookie);
+        let ca = decodedCookie.split(';');
+        for(let i = 0; i <ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) == ' ') {
+            c = c.substring(1);
+            }
+            if (c.indexOf(name) == 0) {
+                document.getElementById('LogResponse').innerHTML=c.substring(name.length, c.length)
+                break;
+            }
+        }
+        document.cookie = 'Message='
+    }
+    function swapMode(mode) {
+        if (mode==='Login') {
+            document.getElementById("Login").style.display='block'
+            document.getElementById("Register").style.display='none'
+        } else {
+            document.getElementById("Login").style.display='none'
+            document.getElementById("Register").style.display='block'
+        }
+    }
+    function checkPass() {
+        let PasswordRegister=document.getElementById("PassW").value
+        let PasswordConfirm=document.getElementById("PassConf").value
+        return PasswordRegister === PasswordConfirm;
+    }
+    document.getElementById("Register").onsubmit= function (ev) {
+        ev.preventDefault()
+        let usernameRegister=document.getElementById("UserRegister").value
+        let PasswordRegister=document.getElementById("PassW").value
+        let PasswordConfirm=document.getElementById("PassConf").value
+        let rName=document.getElementById('NAME').value
+        if (!checkPass()) alert("hoy fix it")
+        else {
+            let xhttp=new XMLHttpRequest()
+            xhttp.open('POST','')
+            xhttp.onload= function () {
+                let resp=this.responseText
+                if (resp.includes('OK')) swapMode('Login')
+                else document.getElementById("RegResponse").innerHTML='Username already exists'
+            }
+            xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
+            xhttp.send('Name='+rName+'&Username='+usernameRegister+'&Password='+PasswordRegister+'&PasswordConfirm='+PasswordConfirm)
+        }
+    }
+    document.getElementById('Login').onsubmit=function (ev) {
+        ev.preventDefault()
+        let usernameLogin=document.getElementById("User").value
+        let PasswordLogin=document.getElementById("Pass").value
+        let xhttp=new XMLHttpRequest()
+        xhttp.open('POST','')
+        xhttp.onload=function () {
+            let resp=this.responseText
+            if (resp.includes('OK')) {
+                document.cookie= 'Username='+resp.substring(2)
+                window.location.replace('Management')
+            }
+            else document.getElementById("LogResponse").innerHTML=resp
+        }
+        xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
+        xhttp.send('Username='+usernameLogin+'&Password='+PasswordLogin)
+    }
+</script>
+</body>
+</html> 

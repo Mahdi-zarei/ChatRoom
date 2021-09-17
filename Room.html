@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" type="text/css" href="static/styling.css">
+    <title>ChatRoom</title>
+</head>
+<body onload="getUser()" >
+<script >
+    /*
+    document.getElementById('title').addEventListener('contextmenu',function (e) {
+        e.preventDefault()
+        window.open('/RoomInfo/'+CurrentID)
+    })
+    */
+    function logger() {
+        let xhttp=new XMLHttpRequest()
+        xhttp.open('POST','/SYNC')
+        xhttp.onload=function () {
+            if (this.responseText==='ERROR401') Terminate()
+        }
+        xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
+        xhttp.send('Username='+username)
+    }
+
+    function Terminate() {
+        clearInterval(Handle)
+        clearInterval(LOGHANDLE)
+        document.cookie= 'Message=You need to login first!'
+        window.location.replace('Starter')
+    }
+
+    window.addEventListener("keypress", function (ev) {
+        if (ev.key === 'Enter') document.getElementById('updater').click()
+    })
+    let username;
+    let CurrentID=''
+    let lastUser={}
+    let lastMessage={}
+    let messageCounter={}
+    let NumberOfUnread={}
+    let MessageToShow={}
+    let LOGHANDLE
+
+    function getUser() {
+        let name = 'Username' + "=";
+        let decodedCookie = decodeURIComponent(document.cookie);
+        let ca = decodedCookie.split(';');
+        for(let i = 0; i <ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) == ' ') {
+            c = c.substring(1);
+            }
+            if (c.indexOf(name) == 0) {
+                username=c.substring(name.length, c.length)
+                break;
+            }
+        }
+        document.cookie= 'Username='
+        UPDATER()
+    }
+
+    let Handle
+    function UPDATER() {
+        let xhttp = new XMLHttpRequest()
+        xhttp.open('POST','')
+        xhttp.onload=function () {
+            let answer=this.responseText
+            answer = answer.split('&')
+            for (let x=0;x<answer.length;x+=2) {
+                DivCreator(answer[x+1],answer[x],'RoomsList')
+            }
+        }
+        xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
+        xhttp.send('Purpose=Rooms&Username='+username)
+
+        LOGHANDLE=setInterval(logger,1000)
+        Handle=setInterval(askForUpdate,200)
+    }
+
+    function clearDiv(node) {
+        while (node.firstChild) {
+            node.firstChild.remove()
+        }
+    }
+
+    let current_room
+    function DivCreator(NAME,ID,host) {
+        let tmp=document.createElement('div')
+        let represent = document.createElement('div')
+        let area=document.getElementById('AREA')
+        represent.id=`&&&${ID}`
+        represent.classList.add('Messages')
+        area.appendChild(represent)
+        lastUser[represent.id] = ''
+        lastMessage[represent.id] = -1
+        messageCounter[represent.id] = 0
+
+        let Header=document.createElement('div')
+        let NHeader=document.createElement('div')
+        let NumHeader=document.createElement('div')
+        let LastMessage=document.createElement('div')
+
+        LastMessage.innerHTML='&nbsp;'
+
+        NumHeader.innerHTML='0'
+        NumHeader.classList.add('NumberRound')
+        NumHeader.classList.add('NumberRoundInvisible')
+
+        NHeader.innerHTML=NAME
+        NHeader.classList.add('Paragraph')
+        NHeader.addEventListener('mouseover',function () {
+            ShowUser(ID,'Identifier')
+        })
+        NHeader.addEventListener('mouseout',function () {
+            ShowUser('','Identifier')
+        })
+
+        Header.classList.add('IncludedRoomsHeader')
+        Header.appendChild(NHeader)
+        Header.appendChild(NumHeader)
+
+        NumberOfUnread[ID]=NumHeader
+        MessageToShow[ID]=LastMessage
+
+        tmp.title=ID
+        tmp.id=`&&&&${ID}`
+        tmp.classList.add('IncludedRooms')
+        tmp.appendChild(Header)
+        tmp.appendChild(LastMessage)
+
+        //if not initiated --> initiates
+        if (CurrentID==='') {
+            represent.classList.add('MessagesAppear')
+            CurrentID = ID
+            document.getElementById('title').innerHTML=NAME
+            current_room=tmp
+            current_room.classList.add('IncludedRoomsSelected')
+        }
+
+        tmp.addEventListener('click', function (e) {
+            e.preventDefault()
+
+            current_room.classList.remove('IncludedRoomsSelected')
+            document.getElementById(`&&&${CurrentID}`).classList.remove('MessagesAppear')
+            document.getElementById('title').innerHTML=NAME
+            document.getElementById('inp').focus()
+
+            represent.classList.add('MessagesAppear')
+
+            current_room=tmp
+            current_room.classList.add('IncludedRoomsSelected')
+            CurrentID=this.title
+            if (represent.innerHTML!=='') {
+                if (lastMessage[represent.id]===-1) lastMessage[represent.id] = 0
+                else
+                represent.scrollTop = document.getElementById(`ID=${CurrentID}&NUM=${lastMessage[represent.id]}`).offsetTop -
+                    document.getElementById(`ID=${CurrentID}&NUM=${lastMessage[represent.id]}`).scrollHeight
+            }
+
+            lastMessage[represent.id]=messageCounter[represent.id]-1
+            UpdateIconNumber(ID)
+        })
+
+        document.getElementById(host).appendChild(tmp)
+        return tmp
+    }
+
+    function askForUpdate() {
+        let xhttp=new XMLHttpRequest()
+        xhttp.open('POST','')
+        xhttp.onload= function () {
+            let resp=this.responseText
+            upd(resp)
+        }
+        xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
+        xhttp.send('Username='+username+'&Purpose=Update')
+    }
+
+    let STATUS
+    function send() {
+        let message=document.getElementById('inp').value
+        if (message==='') return
+
+        document.getElementById('inp').value=''
+
+        let xhttp=new XMLHttpRequest()
+        xhttp.open('POST','')
+        xhttp.onload=function () {
+            if (this.responseText==='DONE') {
+                document.getElementById('tmpData').innerHTML='Message sent'
+
+                clearTimeout(STATUS)
+                STATUS=setTimeout(function () {
+                    if (document.getElementById('tmpData').innerHTML==='Message sent')
+                        document.getElementById('tmpData').innerHTML='&nbsp;'
+                },1000)
+            }
+        }
+        xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
+        xhttp.send('Username='+username+'&Purpose=Send'+'&Message='+message+'&Target='+CurrentID)
+    }
+
+    function upd(Str) {
+        let Messages = Str.toString().split("&&&&&")
+        for (let i = 0; i < Messages.length; i+=2) {
+            addMessage(Messages[i], Messages[i+1])
+        }
+    }
+
+    function addMessage(identifier,str) {
+        if (str==='') return
+        let messages=str.split('&&&')
+        for (let x=0;x<messages.length;x++) addMessageToRoom(messages[x],identifier)
+    }
+
+    function UpdateIconNumber(ID) {
+        NumberOfUnread[ID].classList.remove('NumberRoundInvisible')
+        NumberOfUnread[ID].innerHTML=(messageCounter[`&&&${ID}`]-lastMessage[`&&&${ID}`]-1).toString()
+        if (messageCounter[`&&&${ID}`]-lastMessage[`&&&${ID}`]-1===0) NumberOfUnread[ID].classList.add('NumberRoundInvisible')
+    }
+
+    function addMessageToRoom(str,identifier) {
+        let Name=document.createElement('div')
+        let Message=document.createElement('div')
+        let Container=document.createElement('div')
+        let Target=document.getElementById(`&&&${identifier}`)
+
+        let data=str.split('&')
+
+        let user
+        let name
+        let message
+        let code=1
+
+        if (data[0]==='Message') {
+            name=data[1]
+            user=data[2]
+            message=data[3]
+            code=1
+        }
+
+        if (data[0]==='Server') {
+            name='Server'
+            user=data[1]
+            message=user+data[2]
+            code=0
+        }
+
+        Name.innerHTML=name
+        Name.title=user
+        Name.classList.add('UserName')
+        Name.addEventListener('contextmenu', function (e) {
+            e.preventDefault()
+            if (this.innerHTML!=='Server') OpenUser(user)
+            else OpenUser('')
+        })
+        Name.addEventListener("mouseover", function () {
+            if (this.innerHTML!=='Server') ShowUser(this.title)
+            else ShowUser('The Server','Username')
+        })
+        Name.addEventListener("mouseout", function () {
+            ShowUser('','Username')
+        })
+
+        Message.id=`ID=${identifier}&NUM=${messageCounter[Target.id]++}`
+        Message.innerHTML=message
+        Message.classList.add(`chatInner`)
+
+        if (`&&&${CurrentID}`!==Target.id) lastMessage[Target.id]=Math.min(lastMessage[Target.id],messageCounter[Target.id]-1)
+        else lastMessage[Target.id]=messageCounter[Target.id]-1
+
+        UpdateIconNumber(identifier)
+        MessageToShow[identifier].innerHTML=user+': '+message
+        MessageToShow[identifier].innerHTML=MessageToShow[identifier].innerHTML.substring(0,30)
+
+        Container.classList.add('Container')
+
+        //appending
+        if (lastUser[Target.id]!==user || code===0) {
+            Container.appendChild(Name)
+            lastUser[Target.id]=user
+        }
+        Container.appendChild(Message)
+        Target.appendChild(Container)
+
+        Target.scrollTop=Target.scrollHeight
+    }
+
+    function ShowUser(user,type) {
+        let ts
+        if (user==='') ts='&nbsp;'
+        else ts=type+': '+user
+        if (user==='The Server' && type==='Username') ts=user
+        document.getElementById('tmpData').innerHTML=ts
+    }
+
+    function OpenUser(user) {
+        if (user==='') {
+            document.getElementById('tmpData').innerHTML='The Server'
+            return
+        }
+        window.open('/Profile/'+user)
+    }
+
+</script>
+
+    <div class="AreaSend">
+        <div id="AREA" class="Area">
+            <div id="title" class="TITLE"></div>
+        </div>
+
+        <div class="Send-Box" >
+            <input type="text" id="inp" name="name" placeholder="Enter a message" autofocus class="Input">
+            <button id="updater" onclick="send()">Send</button>
+        </div>
+    </div>
+    <div class="RoomData">
+        <div id="tmpData" class="leftTest">&nbsp;</div>
+        <div id="RoomsList" class="LeftRooms"></div>
+    </div>
+</body>
+</html>
