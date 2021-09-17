@@ -58,6 +58,7 @@ class USER:
     def remove_room(self,room):
         if room in self.Rooms:
             self.Rooms.remove(room)
+            room.reset_user(self)
             return 'Room removed'
         return 'Room was not added'
 
@@ -96,6 +97,9 @@ class Room:
 
     def add_user(self, user):
         self.Users.append(user)
+        self.linker[user] = -1
+
+    def reset_user(self,user):
         self.linker[user] = -1
 
     def add_message(self, message):
