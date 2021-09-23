@@ -35,7 +35,7 @@ class USER:
         self.Rooms = []
         NameOf[uname] = name
 
-    def Authenticate(self, user, password):
+    def authenticate(self, user, password):
         if user == self.uname and password == self.password:
             return True
         return False
@@ -48,17 +48,22 @@ class USER:
         if 'password' in data:
             self.password = data['password']
 
-    def add_room(self, room):
+    def add_room(self, room, password):
+        if room.password != password:
+            print(room.password+' '+password)
+            return 'Wrong password'
+
         if room not in self.Rooms:
             self.Rooms.append(room)
             room.add_user(self)
             return 'Room added'
-        return 'Room already added'
 
-    def remove_room(self,room):
+        return 'Error adding room'
+
+    def remove_room(self, room):
         if room in self.Rooms:
             self.Rooms.remove(room)
-            room.reset_user(self)
+            room.remove_user(self)
             return 'Room removed'
         return 'Room was not added'
 
@@ -77,9 +82,11 @@ def find_user(username):
 
 
 class Room:
-    def __init__(self, identifier, name):
+    def __init__(self, identifier, name, password, username):
         self.identifier = identifier
         self.name = name
+        self.password = password
+        self.Creator = username
         self.Chats = []
         self.linker = {}
         self.Users = []
@@ -88,40 +95,66 @@ class Room:
         if user not in self.linker.keys():
             self.add_user(user)
         response = ''
-        for a, b in self.Chats:
+        for a, b, c in self.Chats:
             if b > self.linker[user]:
-                response += a + '\n&&&'
+                if c:
+                    response += parse_forward(a) + '&&&'
+                else:
+                    response += a + '&&&'
                 self.linker[user] = b
         response = response[:-3]
         return response
 
     def add_user(self, user):
         self.Users.append(user)
+        self.add_message('Server&'+user.uname+'&'+user.name+' Joined the room')
         self.linker[user] = -1
 
-    def reset_user(self,user):
-        self.linker[user] = -1
+    def remove_user(self, user):
+        self.add_message('Server&' + user.uname + '&' + user.name + ' Left the room')
+        self.Users.remove(user)
 
-    def add_message(self, message):
-        self.Chats.append((message, len(self.Chats)))
+    def get_users(self):
+        resp = ''
+        for x in self.Users:
+            resp += x.name + '&&&' + x.uname + '&&&'
+        resp = resp[:-3]
+        return resp
+
+    def add_message(self, message, forwarded=False):
+        self.Chats.append((message, len(self.Chats), forwarded))
+
+    def get_message_with_index(self, ind):
+        for a, b, c in self.Chats:
+            if b == ind:
+                return a
+
+    def is_forwarded(self, ind):
+        for a, b, c in self.Chats:
+            if b == ind:
+                if c:
+                    return a
+                else:
+                    return False
 
 
-def duplicate_Room(identifier):
+def duplicate_room(identifier):
     for x in all_Rooms:
         if x.identifier == identifier:
             return True
     return False
 
 
-def create_Room(identifier, name):
-    if duplicate_Room(identifier):
+def create_room(identifier, name, password, username):
+    if duplicate_room(identifier):
         return 'This room id already exists'
-    tmp = Room(identifier, name)
+    tmp = Room(identifier, name, password, username)
+    tmp.add_message('Server&'+username+'&'+NameOf.get(username)+' Created the room')
     all_Rooms.append(tmp)
     return 'Room Created'
 
 
-def return_All_Rooms():
+def return_all_rooms():
     response = ''
     for r in all_Rooms:
         response += r.identifier+'&'+r.name+'&'
@@ -133,6 +166,21 @@ def get_room(identifier):
     for x in all_Rooms:
         if x.identifier == identifier:
             return x
+
+
+def get_source_message(identifier, ind):
+    x = get_room(identifier).is_forwarded(int(ind))
+    if not x:
+        return get_room(identifier).get_message_with_index(int(ind))
+    else:
+        return get_source_message(x.split('&')[0], x.split('&')[1])
+
+
+def parse_forward(raw):
+    data = raw.split('&')
+    resp = 'Forward&'
+    resp += get_source_message(data[0], data[1])+'&'+data[0]+'&'+data[1]+'&'+data[2]+'&'+data[3]
+    return resp
 
 
 def cache():
@@ -183,19 +231,23 @@ def management():
 
         username = translate_security(username)
         if purpose == 'Create':
-            return create_Room(request.form['Identifier'], request.form['Name'])
+            return create_room(request.form['Identifier'], request.form['Name'], request.form['Password'], username)
 
         if purpose == 'RawData':
-            return return_All_Rooms()
+            return return_all_rooms()
 
         if purpose == 'Add':
-            return find_user(username).add_room(get_room(request.form['ID']))
+            return find_user(username).add_room(get_room(request.form['ID']), request.form['Password'])
 
         if purpose == 'Remove':
             return find_user(username).remove_room(get_room(request.form['ID']))
 
         if purpose == 'UserData':
             return find_user(username).get_rooms()
+
+        if purpose == 'RoomInfo':
+            room = get_room(request.form['ID'])
+            return str(len(room.Chats))+'&&&'+room.get_users()
 
     return render_template('Room_Management.html')
 
@@ -213,11 +265,14 @@ def manager():
             return sendUpdate(username)
 
         if purpose == 'Send':
-            get_room(request.form['Target']).add_message("Message&"+NameOf.get(username)+'&'+username+'&'+request.form['Message'])
+            get_room(request.form['Target']).add_message("Message&"+NameOf.get(username)+'&'+username+'&'+request.form['Message']+'&'+request.form['Reply'])
             return 'DONE'
 
         if purpose == 'Rooms':
             return find_user(username).get_rooms()
+
+        if purpose == 'Forward':
+            get_room(request.form['Target']).add_message(request.form['ID']+'&'+request.form['NUM']+'&'+username+'&'+NameOf.get(username), True)
 
         if purpose == 'LOGOUT':
             logout(username)
@@ -225,7 +280,7 @@ def manager():
     return render_template('Room.html')
 
 
-@app.route('/RoomInfo/<identifier>', methods=['POST','GET'])
+@app.route('/RoomInfo/<identifier>', methods=['POST', 'GET'])
 def room_giver(identifier):
     if request.method == 'POST':
         resp = ''
@@ -282,7 +337,8 @@ def logger(username, password):
             UserS.append(x)
             Security[username] = ''.join(random.SystemRandom().choice(string.digits + string.ascii_letters) for _ in range(14))
             newTimer(username)
-            Linker[username] = -1
+            for y in find_user(username).Rooms:
+                y.add_message('Server&'+username+'&'+NameOf.get(username)+' is now Online')
             return True
     return False
 
@@ -296,13 +352,17 @@ def sendUpdate(usr):
     return resp
 
 
+def user_reset(user):
+    for room in user.Rooms:
+        room.remove_user(user)
+
+
 def logout(username):
     for x in find_user(username).Rooms:
-        x.add_message('Server&'+username+'& Left the chat')
+        x.add_message('Server&'+username+'&'+NameOf.get(username)+' is now Offline')
+    user_reset(find_user(username))
     UserS.remove(find_user(username))
     Security.pop(username)
-    HFile.write(username+' Left the Chat'+'\n')
-    HFile.flush()
     return redirect('tst.html', 200)
 
 

@@ -5,26 +5,67 @@
     <link rel="stylesheet" type="text/css" href="static/styling.css">
     <title>ChatRoom</title>
 </head>
-<body onload="getUser()" >
+<body onload="INITIATE()" >
 <script >
     let HOLD=false
-    let Fixor=true
+    let Fixor=false
+    let isPop=false
+    let PopDiv=false
     let SelectionHandle
+    let RoomInfoId
+    let RoomInfoName
+    let toForward=''
+    let ForwardList=[]
+
+    let isContextMenu=false
+    let ContextM
+
+    let ReplySection
+    let RepliedMessage={}
 
     window.addEventListener('click',function (e) {
-        let section=document.getElementById("Management-section")
-        if (section.classList.contains("SelectionPanelHide") || Fixor || (e.x===0 && e.y===0)) return
+        if (Fixor || (e.x===0 && e.y===0) || !isPop) return
         else {
-            let rect=section.getBoundingClientRect()
+            let rect=PopDiv.getBoundingClientRect()
             if ((e.x>rect.right || e.x<rect.left) || (e.y>rect.bottom || e.y<rect.top)) {
-                console.log('it worked')
-                section.classList.add("SelectionPanelHide")
+                isPop=false
+                PopDiv.classList.remove("PopUpShow")
                 document.getElementById('Main-Contents').classList.remove("blurry")
                 document.getElementById('Main-Contents').classList.remove("disableClicks")
-                Fixor=false
                 document.getElementById('inp').focus()
-                clearInterval(SelectionHandle)
+                PopUpSideActions(PopDiv.id, false)
             }
+        }
+    })
+
+    window.addEventListener('contextmenu',function (e) {
+        if (Fixor || (e.x===0 && e.y===0) || !isPop) return
+        else {
+            e.preventDefault()
+            let rect=PopDiv.getBoundingClientRect()
+            if ((e.x>rect.right || e.x<rect.left) || (e.y>rect.bottom || e.y<rect.top)) {
+                isPop=false
+                PopDiv.classList.remove("PopUpShow")
+                document.getElementById('Main-Contents').classList.remove("blurry")
+                document.getElementById('Main-Contents').classList.remove("disableClicks")
+                document.getElementById('inp').focus()
+                PopUpSideActions(PopDiv.id, false)
+            }
+        }
+    })
+
+    window.addEventListener('click',function (e) {
+        if (!isContextMenu) return
+        let rect=ContextM.getBoundingClientRect()
+        if ((e.x>rect.right || e.x<rect.left) || (e.y>rect.bottom || e.y<rect.top)) {
+            ContextMenuManager(0,0,false)
+        }
+    })
+
+    window.addEventListener('contextmenu',function (e) {
+        let rect=ContextM.getBoundingClientRect()
+        if (isContextMenu && ((e.x>rect.right || e.x<rect.left) || (e.y>rect.bottom || e.y<rect.top))) {
+            ContextMenuManager(0,0,false)
         }
     })
 
@@ -58,7 +99,7 @@
     let LOGHANDLE
     let Handle
 
-    function getUser() {
+    function INITIATE() {
         let name = 'Username' + "=";
         let decodedCookie = decodeURIComponent(document.cookie);
         let ca = decodedCookie.split(';');
@@ -73,9 +114,11 @@
             }
         }
         document.cookie= 'Username='
+        ContextM=document.getElementById('CMenu')
+        ReplySection=document.getElementById('replyMessage')
         UPDATER()
         LOGHANDLE=setInterval(logger,1000)
-        Handle=setInterval(askForUpdate,200)
+        Handle=setInterval(askForUpdate,300)
     }
 
     function UPDATER() {
@@ -84,7 +127,7 @@
         xhttp.onload=function () {
             let answer=this.responseText
             if (answer==='') {
-                SelectionMode()
+                PopUp('Management-section')
                 HOLD=true
                 return
             } else HOLD=false
@@ -115,6 +158,7 @@
         lastUser[represent.id] = ''
         lastMessage[represent.id] = -1
         messageCounter[represent.id] = 0
+        RepliedMessage[ID]=''
 
         let Header=document.createElement('div')
         let NHeader=document.createElement('div')
@@ -169,6 +213,9 @@
             document.getElementById('title').innerHTML=NAME
             document.getElementById('inp').focus()
 
+
+            Reply(RepliedMessage[ID])
+
             represent.classList.add('MessagesAppear')
 
             current_room=tmp
@@ -177,16 +224,37 @@
             if (represent.innerHTML!=='') {
                 if (lastMessage[represent.id]===-1) lastMessage[represent.id] = 0
                 else
-                represent.scrollTop = document.getElementById(`ID=${CurrentID}&NUM=${lastMessage[represent.id]}`).offsetTop -
-                    document.getElementById(`ID=${CurrentID}&NUM=${lastMessage[represent.id]}`).scrollHeight
+                Scroller(represent,`ID=${CurrentID}&NUM=${lastMessage[represent.id]}`,false)
             }
 
             lastMessage[represent.id]=messageCounter[represent.id]-1
             UpdateIconNumber(ID)
         })
 
+        tmp.addEventListener('contextmenu',function (e) {
+            e.preventDefault()
+            RoomInfoId=ID
+            RoomInfoName=NAME
+            let m0=CreateItem('Room Info')
+            m0.onclick=RoomInfo
+            let m1=CreateItem('Remove')
+            m1.onclick=function () {
+                RemoveThis(ID)
+            }
+            m1.style.backgroundColor='red'
+            createMenu([m0,m1])
+            ContextMenuManager(e.x,e.y,true)
+        })
+
         document.getElementById(host).appendChild(tmp)
         return tmp
+    }
+
+    function Scroller(host,targetID,includes) {
+        let target=document.getElementById(targetID)
+        let position=target.offsetTop - target.scrollHeight
+        if (includes) position-=target.scrollHeight
+        if (host.scrollTop>position) host.scrollTop=position
     }
 
     function askForUpdate() {
@@ -209,6 +277,13 @@
 
         document.getElementById('inp').value=''
 
+        let replyID=RepliedMessage[CurrentID]
+        if (replyID!=='') {
+            CloseReply()
+            replyID=replyID.split('&')[1]
+        }
+        else replyID='NONE'
+
         let xhttp=new XMLHttpRequest()
         xhttp.open('POST','')
         xhttp.onload=function () {
@@ -223,7 +298,7 @@
             }
         }
         xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
-        xhttp.send('Username='+username+'&Purpose=Send'+'&Message='+message+'&Target='+CurrentID)
+        xhttp.send('Username='+username+'&Purpose=Send'+'&Message='+message+'&Target='+CurrentID+"&Reply="+replyID)
     }
 
     function upd(Str) {
@@ -250,38 +325,57 @@
         let Message=document.createElement('div')
         let Container=document.createElement('div')
         let Target=document.getElementById(`&&&${identifier}`)
+        let ReplySect=document.createElement('div')
+        let time=document.createElement('div')
+
+        time.innerHTML=new Date().getHours()+':'
+        if (new Date().getMinutes()<10) time.innerHTML+='0'
+        time.innerHTML+=new Date().getMinutes()
+        time.classList.add('TIME')
 
         let data=str.split('&')
 
         let user
         let name
         let message
+        let ReplyID
         let code=1
+        let originalUser
+        let originalName
 
         if (data[0]==='Message') {
             name=data[1]
             user=data[2]
             message=data[3]
+            ReplyID=data[4]
+            if (ReplyID!=='NONE') ReplyID='ID='+identifier+'&'+ReplyID
             code=1
         }
 
         if (data[0]==='Server') {
             name='Server'
             user=data[1]
-            message=user+data[2]
+            message=data[2]
+            ReplyID='NONE'
             code=0
+        }
+
+        if (data[0]==='Forward') {
+            name=data[9]
+            user=data[8]
+            originalUser=data[3]
+            originalName=data[2]
+            message=data[4]
+            ReplyID='NONE'
+            code=2
         }
 
         Name.innerHTML=name
         Name.title=user
+        if (code===0) Name.title='about '+user
         Name.classList.add('UserName')
-        Name.addEventListener('contextmenu', function (e) {
-            e.preventDefault()
-            if (this.innerHTML!=='Server') OpenUser(user)
-            else OpenUser('')
-        })
         Name.addEventListener("mouseover", function () {
-            if (this.innerHTML!=='Server') ShowUser(this.title)
+            if (this.innerHTML!=='Server') ShowUser(this.title,'Username')
             else ShowUser('The Server','Username')
         })
         Name.addEventListener("mouseout", function () {
@@ -289,24 +383,91 @@
         })
 
         Message.id=`ID=${identifier}&NUM=${messageCounter[Target.id]++}`
+        Message.title=name
         Message.innerHTML=message
         Message.classList.add(`chatInner`)
+        if (code===2) Message.style.display='none'
 
         if (`&&&${CurrentID}`!==Target.id) lastMessage[Target.id]=Math.min(lastMessage[Target.id],messageCounter[Target.id]-1)
         else lastMessage[Target.id]=messageCounter[Target.id]-1
 
         UpdateIconNumber(identifier)
-        MessageToShow[identifier].innerHTML=user+': '+message
-        MessageToShow[identifier].innerHTML=MessageToShow[identifier].innerHTML.substring(0,30)
+        MessageToShow[identifier].innerHTML=name+': '+message
 
         Container.classList.add('Container')
+        Container.addEventListener('contextmenu',function (e) {
+            e.preventDefault()
+            let list=[]
+            let m0=CreateItem('Profile')
+            let m1=CreateItem('Reply')
+            let m2=CreateItem('Forward')
+            m0.onclick=function () {
+                OpenUser(user)
+            }
+            m1.onclick=function () {
+                Reply(Message.id)
+            }
+            m2.onclick=function () {
+                forwardTargeting(Message.id)
+            }
+            if (code>0) list.push(m0)
+            list.push(m1)
+            if (code>0) list.push(m2)
+            createMenu(list)
+            ContextMenuManager(e.x,e.y,true)
+        })
+
+        if (code===0) {
+            Container.classList.add('ServerMessage')
+            Message.classList.add('Server-Config')
+        }
 
         //appending
-        if (lastUser[Target.id]!==user || code===0) {
+        if (lastUser[Target.id]!==user && code>0) {
             Container.appendChild(Name)
             lastUser[Target.id]=user
+            if (code===0) lastUser[Target.id]='Server'
         }
+        if (ReplyID!=='NONE') {
+            let img=document.createElement('img')
+            img.src="static/Reply.png"
+            img.alt='flash'
+            img.width=20
+            img.height=20
+            img.style.display='inline-block'
+            ReplySect.appendChild(img)
+            ReplySect.classList.add('ReplyINNER')
+            let pMessage=document.createElement('div')
+            pMessage.classList.add('ReplyText')
+            pMessage.innerHTML=document.getElementById(ReplyID).title+': '+document.getElementById(ReplyID).innerHTML
+            ReplySect.appendChild(pMessage)
+            ReplySect.onclick=function () {
+                Scroller(Target, ReplyID,true)
+            }
+            Container.appendChild(ReplySect)
+        }
+
+        if (code===2) {
+            let tmp=document.createElement('div')
+
+            let img=document.createElement('img')
+            img.src="static/Forward.png"
+            img.alt='flash'
+            img.width=20
+            img.height=20
+            img.style.display='inline-block'
+            tmp.appendChild(img)
+            tmp.classList.add('ReplyINNER')
+            let pMessage=document.createElement('div')
+            pMessage.classList.add('ReplyText')
+            pMessage.innerHTML=originalName+': '+message
+            pMessage.title=originalUser
+            tmp.appendChild(pMessage)
+            Container.appendChild(tmp)
+        }
+
         Container.appendChild(Message)
+        if (code>0) Container.appendChild(time)
         Target.appendChild(Container)
 
         Target.scrollTop=Target.scrollHeight
@@ -408,18 +569,33 @@
     function Selector(x) {
         if (selected!=='') selected.classList.remove('RoomsSelected')
         selected=x
-        if (selected!=='') selected.classList.add("RoomsSelected")
+        if (selected!=='') {
+            selected.classList.add("RoomsSelected")
+            if (selected.id.includes('Private')) {
+                document.getElementById('getPassword').disabled=false
+            } else document.getElementById('getPassword').disabled=true
+        }
 
     }
     let ADD_STATE_HANDLER
     function ManageRoom(str) {
         let resultShow=document.getElementById('addState')
+        let password=document.getElementById('getPassword').value
+        document.getElementById('getPassword').value=''
         if (selected==='') {
             resultShow.classList.remove('TextInvisible')
             resultShow.innerHTML='Select a Room first!'
             handleHandler(resultShow,true)
             return
         }
+        if (password==='' && selected.title.includes('Private')) {
+            resultShow.classList.remove('TextInvisible')
+            resultShow.innerHTML='You need a password to join'
+            handleHandler(resultShow,true)
+            return
+        }
+
+        if (selected.title.includes('Public')) password=''
         let xhttp = new XMLHttpRequest()
         xhttp.open('POST','/Management')
         xhttp.onload= function () {
@@ -428,44 +604,48 @@
             handleHandler(resultShow,true)
         }
         xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
-        xhttp.send("Purpose="+str+"&ID="+selected.title+"&Username="+username)
+        xhttp.send("Purpose="+str+"&ID="+selected.title+"&Username="+username+"&Password="+password)
         Refresh()
         UPDATER()
         Selector('')
     }
 
-    function RemoveThis() {
-        if (CurrentID==='') return
+    function RemoveThis(ID) {
         let xhttp=new XMLHttpRequest()
         xhttp.open('POST','/Management')
         xhttp.onload= function () {
             document.getElementById('tmpData').innerHTML=this.responseText
         }
         xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
-        xhttp.send("Purpose=Remove"+"&ID="+CurrentID+"&Username="+username)
-        document.getElementById('&&&'+CurrentID).remove()
-        document.getElementById('&&&&'+CurrentID).remove()
-        lastMessage['&&&'+CurrentID]=-1
-        messageCounter['&&&'+CurrentID]=0
-        MessageToShow[CurrentID]=''
-        NumberOfUnread[CurrentID]=0
-        lastUser['&&&'+CurrentID]=''
-        document.getElementById('title').innerHTML=''
-        CurrentID=''
+        xhttp.send("Purpose=Remove"+"&ID="+ID+"&Username="+username)
+        document.getElementById('&&&'+ID).remove()
+        document.getElementById('&&&&'+ID).remove()
+        lastMessage['&&&'+ID]=-1
+        messageCounter['&&&'+ID]=0
+        MessageToShow[ID]=''
+        NumberOfUnread[ID]=0
+        lastUser['&&&'+ID]=''
+        if (ID === CurrentID) {
+            document.getElementById('title').innerHTML=''
+            CurrentID=''
+        }
         if (document.getElementById('AREA').children.length===1) HOLD=true
     }
 
     let CREATE_STATE_HANDLE
     function CreateRoom() {
         let resultShow=document.getElementById('CreateState')
-        let ID=`Room${Date.now().toString()}`
+        let mode=document.getElementById('Moder').innerHTML
+        let ID=mode+Date.now().toString()
         let name=document.getElementById('name').value
-        if (ID==='' || name==='') {
+        let pass=document.getElementById('Password').value
+        if (name==='' || (mode==='Private' && pass==='')) {
             resultShow.classList.remove('TextInvisible')
             resultShow.innerHTML='Fields cant be empty!'
             handleHandler(resultShow,true)
             return
         }
+        if (mode==='Public') pass=''
         let xhttp = new XMLHttpRequest()
         xhttp.open('POST','/Management')
         xhttp.onload=function () {
@@ -475,30 +655,209 @@
             GetData()
         }
         xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
-        xhttp.send("Purpose=Create"+"&Identifier="+ID+"&Name="+name+"&Username="+username)
+        xhttp.send("Purpose=Create"+"&Identifier="+ID+"&Name="+name+"&Username="+username+"&Password="+pass)
         document.getElementById('name').focus()
     }
 
-    function SelectionMode() {
-        Refresh()
-        SelectionHandle = setInterval(Refresh,1000)
+    function RoomMode() {
+        let indicator=document.getElementById('Moder')
+        if (indicator.innerHTML==='Public') {
+            indicator.innerHTML='Private'
+            indicator.classList.remove('PasswordSectionPublic')
+            indicator.classList.add('PasswordSectionPrivate')
+            document.getElementById('Password').disabled=false
+        } else {
+            indicator.classList.add('PasswordSectionPublic')
+            indicator.classList.remove('PasswordSectionPrivate')
+            indicator.innerHTML='Public'
+            document.getElementById('Password').disabled=true
+        }
+    }
+
+    function PopUpSideActions(id, begin) {
+        if (id==='Management-section') {
+            Refresh()
+            if (begin) SelectionHandle=setInterval(Refresh,1000)
+            else clearInterval(SelectionHandle)
+        }
+    }
+
+    function PopUp(content) {
         Fixor=true
         setTimeout(function () {
             Fixor=false
-        },1000)
-        document.getElementById('Management-section').classList.remove('SelectionPanelHide')
+        },100)
+        let cnt=document.getElementById(content)
+        PopUpSideActions(content, true)
+        cnt.classList.add('PopUpShow')
+        PopDiv=cnt
+        isPop=true
+
         document.getElementById('Main-Contents').classList.add("blurry")
         document.getElementById('Main-Contents').classList.add("disableClicks")
     }
-</script>
 
+    function createMenu(list) {
+        clearDiv(ContextM)
+        for (let x=0;x<list.length;x++) {
+            ContextM.appendChild(list[x])
+        }
+    }
+
+    function ContextMenuManager(x,y, show) {
+        y=Math.min(y,window.innerHeight-ContextM.offsetHeight)
+        x=Math.min(x,window.innerWidth-ContextM.offsetWidth)
+
+        if (!show) {
+            ContextM.classList.remove('ContextMenuShow')
+            isContextMenu=false
+            return
+        }
+
+        isContextMenu=true
+        ContextM.style.top=y+'px'
+        ContextM.style.left=x+'px'
+        ContextM.classList.add('ContextMenuShow')
+    }
+
+    function CreateItem(text) {
+        let cont=document.createElement('div')
+        cont.classList.add('ContextMenuItems')
+        cont.innerHTML=text
+        cont.addEventListener('mouseenter',function () {
+            cont.classList.add('ContextMenuItemsHover')
+        })
+        cont.addEventListener('mouseleave',function () {
+            cont.classList.remove('ContextMenuItemsHover')
+        })
+        cont.addEventListener('click',function () {
+            ContextMenuManager(0,0,false)
+        })
+        return cont
+    }
+
+    function Reply(ID) {
+        if (ID==='') {
+            ReplySection.classList.remove('ReplyOnSendVisible')
+            return
+        }
+        document.getElementById('inp').focus()
+        let room=ID.split('&')[0].substring(3)
+        RepliedMessage[room]=ID
+        ReplySection.classList.add('ReplyOnSendVisible')
+        document.getElementById('DetailOfHeader').innerHTML='Replying to:'
+        document.getElementById('ReplyMessageText').innerHTML=document.getElementById(ID).title+': '+document.getElementById(ID).innerHTML
+    }
+
+    function CloseReply() {
+        RepliedMessage[CurrentID]=''
+        Reply('')
+    }
+
+    function RoomInfo() {
+        let Name=RoomInfoName
+        let ID=RoomInfoId
+        document.getElementById('Room-Info-Name').innerHTML='Name: '+Name
+        document.getElementById('Room-Info-ID').innerHTML='ID: '+ID
+
+        let type
+        if (ID[1]==='r') type='Requires password'
+        else type='Anyone can join'
+        document.getElementById('Room-Info-Type').innerHTML=`Accessibility: ${type}`
+
+        let time
+        if (type[0]==='R') time=new Date(parseInt(ID.substring(7))).toLocaleString()
+        else  time=new Date(parseInt(ID.substring(6))).toLocaleString()
+        document.getElementById('Room-Info-Date').innerHTML='Created on: '+time
+
+        let xhttp= new XMLHttpRequest()
+        xhttp.open('POST','/Management')
+        xhttp.onload=function () {
+            document.getElementById('Room-Info-NUM').innerHTML='Message count: '+this.responseText.split('&&&')[0]
+            RoomInfoProcess(this.responseText)
+        }
+        xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
+        xhttp.send('Purpose=RoomInfo'+'&Username='+username+'&ID='+ID)
+    }
+
+    function RoomInfoProcess(str) {
+        clearDiv(document.getElementById('Room-Info-Members'))
+        let data=str.split('&&&')
+        let mCount=document.getElementById('Room-Info-Member-Count')
+        mCount.innerHTML=((data.length-1)/2).toString()
+        if (mCount.innerHTML==='1') mCount.innerHTML+=' Member:'
+        else mCount.innerHTML+=' Members:'
+        for (let x=1;x<data.length;x+=2) {
+            let cont=document.createElement('div')
+            cont.innerHTML=data[x]
+            cont.classList.add('Members')
+            cont.title='Username= '+data[x+1]
+            document.getElementById('Room-Info-Members').appendChild(cont)
+        }
+        PopUp('Room-Info')
+    }
+
+    function forwardTargeting(ID) {
+        clearDiv(document.getElementById('Target-Rooms'))
+        while (ForwardList.length>0) ForwardList.pop()
+        document.getElementById('Target-Mode').innerHTML='Select Rooms to forward:'
+        toForward=ID
+        let node=document.getElementById('RoomsList')
+        for (let x=0;x<node.children.length;x++) {
+            let tmp=node.children[x].cloneNode(true)
+            tmp.classList.remove('IncludedRoomsSelected')
+            tmp.firstChild.lastChild.remove()
+            tmp.onclick=function () {
+                SelectForward(this.title,this)
+            }
+            document.getElementById('Target-Rooms').appendChild(tmp)
+        }
+        PopUp('Target-Management')
+    }
+
+    function SelectForward(ID,host) {
+        if (ForwardList.includes(ID)) {
+            ForwardList[ForwardList.indexOf(ID)] = ''
+            host.classList.remove('TargetSelected')
+        }
+        else {
+            ForwardList.push(ID)
+            host.classList.add('TargetSelected')
+        }
+    }
+
+    function FORWARD() {
+        for (let x=0;x<ForwardList.length;x++) {
+            if (ForwardList[x]==='') continue
+            let xhttp=new XMLHttpRequest()
+            xhttp.open('POST','/ChatRoom')
+            xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
+            xhttp.send('Purpose=Forward&Username='+username+'&Target='+ForwardList[x]+'&'+toForward)
+        }
+        toForward=''
+        isPop=false
+        PopDiv.classList.remove("PopUpShow")
+        document.getElementById('Main-Contents').classList.remove("blurry")
+        document.getElementById('Main-Contents').classList.remove("disableClicks")
+        document.getElementById('inp').focus()
+        PopUpSideActions(PopDiv.id, false)
+    }
+
+</script>
+    <div id="CMenu" class="ContextMenuTheme"></div>
     <div id="Main-Contents" style="width: 100%; height: 100%">
         <div class="AreaSend">
         <div id="AREA" class="Area">
             <div id="title" class="TITLE"></div>
         </div>
-
         <div class="Send-Box" >
+            <div id="replyMessage" class="ReplyOnSend">
+                <div class="ReplyHeader">
+                    <div id="DetailOfHeader" style="width: max-content;display: inline-block;left: 47%;position: relative"></div>
+                    <div style="float: right;margin-right: 1%;" onclick="CloseReply()">X</div>
+                </div>
+                <div id="ReplyMessageText" class="ReplyText"></div>
+            </div>
             <input type="text" id="inp" name="name" placeholder="Enter a message" class="Input">
             <button id="updater" onclick="send()">Send</button>
         </div>
@@ -506,15 +865,19 @@
         <div class="RoomData">
             <div id="tmpData" class="leftTest">&nbsp;</div>
             <div id="RoomsList" class="LeftRooms"></div>
-            <button class="RemoveButton" onclick="RemoveThis()">Remove current room</button>
         </div>
-        <button onclick="SelectionMode()" class="joinButton">Manage your rooms</button>
+        <button onclick="PopUp('Management-section')" class="joinButton">Manage your rooms</button>
     </div>
     <div id="Management-section" class="SelectionPanel">
         <div id="CreateSection" class="CreateSection">
             <div class="InputBox">
                 <label for="name">Room Name:</label>
                 <input id="name" name="Name" type="text" autofocus>
+                <br>
+                <div id="Moder" onclick="RoomMode()" class="PasswordSection PasswordSectionPublic">Public</div>
+                <br>
+                <label for="Password" >Password:</label>
+                <input id="Password" name="PassWord" type="text" disabled>
             </div>
             <br>
             <div class="InputBox">
@@ -524,11 +887,38 @@
             <div style="height: 70%;width: 100%">
                 <p style="text-align: center">List of unattended rooms<br></p>
                 <div id="CurrentRooms" class="CurrRooms"></div>
-                <button onclick="ManageRoom('Add')" style="float: bottom">Add Room</button>
-                <p id="addState" class="TextResult"></p>
+                <div class="InputBox">
+                    <div>Password:</div>
+                    <input id="getPassword" type="password" disabled>
+                    <br>
+                    <button onclick="ManageRoom('Add')" style="margin: 3px">Add Room</button>
+                    <br>
+                    <p id="addState" class="TextResult"></p>
+                </div>
             </div>
             <br>
         </div>
+    </div>
+
+    <div id="Room-Info" class="Room-Info">
+        <div>
+            <div style="display: flex;justify-content: space-evenly;flex-direction: row">
+                <p id="Room-Info-Name" class="PSTYLE"></p>
+                <p id="Room-Info-ID" class="PSTYLE"></p>
+            </div>
+            <div style="display: flex;justify-content: space-evenly;flex-direction: row">
+                <p id="Room-Info-Type" class="PSTYLE"></p>
+                <p id="Room-Info-Date" class="PSTYLE"></p>
+                <p id="Room-Info-NUM" class="PSTYLE"></p>
+            </div>
+        </div>
+        <p style="text-align: center" id="Room-Info-Member-Count"></p>
+        <div id="Room-Info-Members" class="Room-Members"></div>
+    </div>
+    <div id="Target-Management" class="Target-Management">
+        <p id="Target-Mode" style="text-align: center"></p>
+        <div id="Target-Rooms" style="height: 65%;overflow: auto"></div>
+        <button onclick="FORWARD()" style="display: block;margin: 0 auto">Forward</button>
     </div>
 </body>
 </html>
