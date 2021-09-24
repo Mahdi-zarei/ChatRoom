@@ -31,6 +31,7 @@
                 isPop=false
                 PopDiv.classList.remove("PopUpShow")
                 document.getElementById('Main-Contents').classList.remove("blurry")
+                document.getElementById('Main-Contents').classList.add('Clearry')
                 document.getElementById('Main-Contents').classList.remove("disableClicks")
                 document.getElementById('inp').focus()
                 PopUpSideActions(PopDiv.id, false)
@@ -47,6 +48,7 @@
                 isPop=false
                 PopDiv.classList.remove("PopUpShow")
                 document.getElementById('Main-Contents').classList.remove("blurry")
+                document.getElementById('Main-Contents').classList.add('Clearry')
                 document.getElementById('Main-Contents').classList.remove("disableClicks")
                 document.getElementById('inp').focus()
                 PopUpSideActions(PopDiv.id, false)
@@ -224,7 +226,7 @@
             if (represent.innerHTML!=='') {
                 if (lastMessage[represent.id]===-1) lastMessage[represent.id] = 0
                 else
-                Scroller(represent,`ID=${CurrentID}&NUM=${lastMessage[represent.id]}`,false)
+                Scroller(represent,`ID=${CurrentID}&NUM=${lastMessage[represent.id]}`,false, false)
             }
 
             lastMessage[represent.id]=messageCounter[represent.id]-1
@@ -250,8 +252,14 @@
         return tmp
     }
 
-    function Scroller(host,targetID,includes) {
+    function Scroller(host,targetID,includes, animate) {
         let target=document.getElementById(targetID)
+        if (animate && !target.classList.contains('Attention')) {
+            target.classList.add('Attention')
+            setTimeout(function () {
+                target.classList.remove('Attention')
+            },2000)
+        }
         let position=target.offsetTop - target.scrollHeight
         if (includes) position-=target.scrollHeight
         if (host.scrollTop>position) host.scrollTop=position
@@ -442,7 +450,7 @@
             pMessage.innerHTML=document.getElementById(ReplyID).title+': '+document.getElementById(ReplyID).innerHTML
             ReplySect.appendChild(pMessage)
             ReplySect.onclick=function () {
-                Scroller(Target, ReplyID,true)
+                Scroller(Target, ReplyID,true, true)
             }
             Container.appendChild(ReplySect)
         }
@@ -675,14 +683,22 @@
     }
 
     function PopUpSideActions(id, begin) {
+        if (begin) document.getElementById(id).classList.remove('PopUpAnime')
+        else {
+            document.getElementById(id).classList.add('PopUpAnime')
+            setTimeout(function () {
+                document.getElementById(id).classList.remove('PopUpAnime')
+            },650)
+        }
         if (id==='Management-section') {
             Refresh()
-            if (begin) SelectionHandle=setInterval(Refresh,1000)
+            if (begin) SelectionHandle = setInterval(Refresh, 1000)
             else clearInterval(SelectionHandle)
         }
     }
 
     function PopUp(content) {
+        document.getElementById('Main-Contents').classList.remove('Clearry')
         Fixor=true
         setTimeout(function () {
             Fixor=false
@@ -705,6 +721,7 @@
     }
 
     function ContextMenuManager(x,y, show) {
+        ContextM.classList.remove('ContextMenuShow')
         y=Math.min(y,window.innerHeight-ContextM.offsetHeight)
         x=Math.min(x,window.innerWidth-ContextM.offsetWidth)
 
