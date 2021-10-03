@@ -124,6 +124,9 @@ class Room:
     def add_message(self, message, forwarded=False):
         self.Chats.append((message, len(self.Chats), forwarded))
 
+    def reset_user(self, user):
+        self.linker[user] = -1
+
     def get_message_with_index(self, ind):
         for a, b, c in self.Chats:
             if b == ind:
@@ -354,7 +357,7 @@ def sendUpdate(usr):
 
 def user_reset(user):
     for room in user.Rooms:
-        room.remove_user(user)
+        room.reset_user(user)
 
 
 def logout(username):
