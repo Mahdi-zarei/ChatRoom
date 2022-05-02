@@ -1,6 +1,5 @@
 # ChatRoom
-a chatroom site, currently under developement for further features to be added
-For now development has stopped due to various reasons, might continue later
+a chatroom site. 
 Since it was a project meant for learning and as yet the refactoring has not been completed for deployment, 
 the code is somewhat poorly structured, but the functionallity of the program is quick and stable(i haven't tested it a lot tho, so there might be minor bugs)
   (you need to install flask for python to run it)  
