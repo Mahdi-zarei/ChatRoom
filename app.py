@@ -220,7 +220,7 @@ def starter():
             else:
                 return 'Wrong username or password'
     else:
-        return render_template("tst.html")
+        return render_template("login.html")
 
 
 @app.route('/Management', methods=['GET', 'POST'])
