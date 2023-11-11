@@ -23,4 +23,4 @@ The navigation context menu for messages is quite simple.
 How a forwarded message will look like.
 
 ![Roominfo](https://github.com/Mahdi-zarei/ChatRoom/assets/80265960/f5f2e7bd-ee37-48b5-8cb0-3b8384da8d2f)
-You can also a room's info via right clicking on it on the sidebar and choosing "Room info".
+You can also view a room's information via right clicking on it on the sidebar and choosing "Room info".
